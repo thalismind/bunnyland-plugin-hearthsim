@@ -1,0 +1,73 @@
+from __future__ import annotations
+
+from relics import EntityId
+
+from bunnyland_hearthsim.recipes import (
+    RECIPE_NAMES,
+    RECIPES,
+    find_recipe,
+    match_recipe,
+    recipe_by_name,
+)
+
+
+def _pantry(*items):
+    """Build a deterministic ``(id, tags)`` list from ``(seq, tags)`` pairs."""
+    return [
+        (EntityId(prefab="entity", sequence=seq), frozenset(tags)) for seq, tags in items
+    ]
+
+
+def test_registry_names_match_lookup():
+    assert RECIPE_NAMES == frozenset(recipe.name for recipe in RECIPES)
+    for recipe in RECIPES:
+        assert recipe_by_name(recipe.name) is recipe
+
+
+def test_recipe_by_name_returns_none_for_unknown():
+    assert recipe_by_name("moon cheese") is None
+
+
+def test_find_prefers_first_makeable_recipe():
+    # Two vegetables satisfy the very first recipe (garden salad).
+    pantry = _pantry((1, ("vegetable",)), (2, ("vegetable",)))
+    recipe, used = find_recipe(pantry)
+    assert recipe.name == "garden salad"
+    assert len(used) == 2
+
+
+def test_find_matches_multi_tag_recipe():
+    pantry = _pantry((1, ("vegetable",)), (2, ("meat",)), (3, ("broth",)))
+    recipe, used = find_recipe(pantry)
+    assert recipe.name == "hearty stew"
+    assert set(used) == {p[0] for p in pantry}
+
+
+def test_single_ingredient_covers_multiple_tags():
+    # One item tagged both meat and broth cannot fill two *distinct* stew slots...
+    pantry = _pantry((1, ("meat", "broth")), (2, ("vegetable",)))
+    assert find_recipe(pantry, name="hearty stew") is None
+    # ...but it can satisfy grilled fish? No — needs fish. It has no makeable recipe here
+    # except none, so a general search returns None too.
+    assert find_recipe(pantry) is None
+
+
+def test_find_returns_none_without_ingredients():
+    assert find_recipe([]) is None
+
+
+def test_forced_recipe_requires_its_tags():
+    pantry = _pantry((1, ("vegetable",)))
+    assert find_recipe(pantry, name="garden salad") is None  # needs two vegetables
+    pantry2 = _pantry((1, ("vegetable",)), (2, ("vegetable",)))
+    recipe, used = find_recipe(pantry2, name="garden salad")
+    assert recipe.name == "garden salad"
+    assert len(used) == 2
+
+
+def test_match_recipe_is_deterministic_by_order():
+    recipe = recipe_by_name("garden salad")
+    pantry = _pantry((5, ("vegetable",)), (2, ("vegetable",)), (9, ("vegetable",)))
+    # match_recipe consumes in the given order; find_recipe sorts upstream.
+    used = match_recipe(recipe, pantry)
+    assert used == [pantry[0][0], pantry[1][0]]

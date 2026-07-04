@@ -31,7 +31,7 @@ from .meals import (
     MealEatenEvent,
 )
 
-PLUGIN_ID = "bunnyland_hearthsim"
+PLUGIN_ID = "bunnyland.hearthsim"
 
 
 def plugin() -> Plugin:

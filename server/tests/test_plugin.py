@@ -17,7 +17,7 @@ from bunnyland_hearthsim.plugin import PLUGIN_ID
 
 def test_plugin_loads_with_module_qualified_id():
     plugins = load_modules(["bunnyland_hearthsim"])
-    assert [p.id for p in plugins] == [f"bunnyland_hearthsim.{PLUGIN_ID}"]
+    assert [p.id for p in plugins] == [PLUGIN_ID]
 
 
 def test_plugin_declares_its_contributions():
@@ -37,6 +37,6 @@ def test_plugin_declares_its_contributions():
 def test_plugin_applies_and_registers_verbs():
     actor = WorldActor()
     applied = apply_plugins(load_modules(["bunnyland_hearthsim"]), actor)
-    assert applied[0].id == f"bunnyland_hearthsim.{PLUGIN_ID}"
+    assert applied[0].id == PLUGIN_ID
     command_types = {definition.command_type for definition in actor.action_definitions()}
     assert {"cook", "eat-meal"} <= command_types

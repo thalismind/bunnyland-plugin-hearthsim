@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
 from bunnyland.core import (
     CharacterComponent,
     ContainmentMode,
@@ -19,7 +20,7 @@ from bunnyland.mechanics.needs import HungerComponent
 
 from bunnyland_hearthsim import BuffComponent, FreshnessComponent, spawn_meal
 from bunnyland_hearthsim.meals import BuffExpiryConsequence, EatMealHandler
-from bunnyland_hearthsim.recipes import recipe_by_name
+from bunnyland_hearthsim.recipes import RECIPES, recipe_by_name
 
 
 def _eater(actor, room, *, hungry=60.0):
@@ -56,6 +57,20 @@ def _cmd(character_id, meal_id):
 
 def _ctx(actor, epoch=0):
     return HandlerContext(world=actor.world, epoch=epoch)
+
+
+@pytest.mark.parametrize("recipe", RECIPES, ids=lambda recipe: recipe.name)
+def test_every_recipe_grants_its_buff_when_eaten(recipe):
+    # A fresh meal of each recipe applies that recipe's buff for its full duration.
+    actor, _room, eater = _scenario(hungry=90.0)
+    meal = spawn_meal(actor.world, recipe, epoch=0, holder=eater)
+
+    result = EatMealHandler().execute(_ctx(actor), _cmd(eater.id, meal.id))
+
+    assert result.ok
+    buff = eater.get_component(BuffComponent)
+    assert buff.name == recipe.buff
+    assert buff.expires_at_epoch == recipe.buff_duration
 
 
 def test_eating_a_meal_restores_hunger_and_applies_buff():

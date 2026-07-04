@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from bunnyland.core import (
     CharacterComponent,
     ContainmentMode,
@@ -14,6 +15,7 @@ from bunnyland.core.handlers import HandlerContext
 
 from bunnyland_hearthsim import MealComponent, spawn_ingredient, spawn_stove
 from bunnyland_hearthsim.cooking import CookHandler
+from bunnyland_hearthsim.recipes import RECIPES
 
 
 def _scenario(*, with_stove=True):
@@ -49,6 +51,22 @@ def _ctx(actor, epoch=0):
 
 def _meals_in(world):
     return list(world.query().with_all([MealComponent]).execute_entities())
+
+
+@pytest.mark.parametrize("recipe", RECIPES, ids=lambda recipe: recipe.name)
+def test_every_recipe_cooks_from_its_ingredients(recipe):
+    # Give the cook exactly the recipe's tags (one distinct ingredient per slot) and force
+    # the named recipe so ordering never shadows it; the stove turns them into that meal.
+    actor, _room, cook, _stove = _scenario()
+    for index, tag in enumerate(recipe.required_tags):
+        spawn_ingredient(actor.world, name=f"{tag}-{index}", tags=(tag,), holder=cook)
+
+    result = CookHandler().execute(_ctx(actor), _cmd(cook.id, {"recipe": recipe.name}))
+
+    assert result.ok
+    meals = _meals_in(actor.world)
+    assert len(meals) == 1
+    assert meals[0].get_component(MealComponent).name == recipe.name
 
 
 def test_cook_produces_a_meal_and_consumes_ingredients():

@@ -29,26 +29,107 @@ class Recipe:
     spoils_after: int = 86400  # one game day before the cooked meal spoils
 
 
-#: The pack's cookbook. Ordered from simplest to richest; ``find_recipe`` prefers the first
-#: recipe whose tags can be satisfied, so a fuller pantry yields a heartier meal.
-RECIPES: tuple[Recipe, ...] = (
+#: How long a preserved food keeps before spoiling — two game days, twice a normal meal.
+PRESERVE_SPOILS_AFTER = 172800
+
+#: The pack's cookbook, authored grouped by category for readability. The public ``RECIPES``
+#: tuple below is derived from this by a deterministic ``(satiety, name)`` sort, so the
+#: registry is always ordered from simplest to richest. ``find_recipe`` prefers the first
+#: recipe whose tags can be satisfied, so a sparse pantry yields a light dish while a fuller
+#: pantry unlocks the heartier ones.
+#:
+#: Ordering note: no recipe may be makeable from a *subset* of ``{vegetable, meat, broth}``
+#: and sort before ``hearty stew``, or it would shadow the stew. This is why, e.g., the
+#: vegetable broth also requires ``herb`` — a plain ``(vegetable, broth)`` dish would steal
+#: the stew's ingredients.
+_CATALOGUE: tuple[Recipe, ...] = (
+    # ---- Breakfasts -------------------------------------------------------------------
+    Recipe("porridge", ("grain", "dairy"), buff="warmed", satiety=24.0, nutrition=22.0),
     Recipe(
-        "garden salad",
-        ("vegetable", "vegetable"),
+        "berry parfait",
+        ("berry", "dairy", "grain"),
         buff="refreshed",
-        satiety=20.0,
-        nutrition=25.0,
+        satiety=22.0,
+        nutrition=26.0,
     ),
-    Recipe("bread loaf", ("grain", "grain"), buff="well-fed", satiety=25.0, nutrition=22.0),
-    Recipe("grilled fish", ("fish",), buff="well-fed", satiety=30.0, nutrition=28.0),
-    Recipe("cheese omelet", ("egg", "dairy"), buff="well-fed", satiety=28.0, nutrition=24.0),
     Recipe(
-        "fruit pie",
-        ("fruit", "grain", "sweet"),
+        "fruit muesli",
+        ("grain", "fruit", "nut"),
+        buff="refreshed",
+        satiety=26.0,
+        nutrition=28.0,
+    ),
+    Recipe(
+        "veggie scramble",
+        ("egg", "egg", "vegetable"),
+        buff="well-fed",
+        satiety=28.0,
+        nutrition=26.0,
+    ),
+    Recipe(
+        "breakfast hash",
+        ("root", "egg", "herb"),
+        buff="nourished",
+        satiety=32.0,
+        nutrition=28.0,
+        buff_duration=16200,
+    ),
+    Recipe(
+        "pancake stack",
+        ("grain", "egg", "sweet"),
         buff="delighted",
-        satiety=35.0,
+        satiety=30.0,
         nutrition=20.0,
         buff_duration=18000,
+    ),
+    # ---- Soups & stews ----------------------------------------------------------------
+    Recipe(
+        "vegetable broth",
+        ("vegetable", "broth", "herb"),
+        buff="comforted",
+        satiety=24.0,
+        nutrition=22.0,
+        buff_duration=16200,
+    ),
+    Recipe(
+        "mushroom soup",
+        ("mushroom", "broth", "dairy"),
+        buff="comforted",
+        satiety=30.0,
+        nutrition=24.0,
+        buff_duration=18000,
+    ),
+    Recipe(
+        "chicken soup",
+        ("poultry", "broth", "vegetable"),
+        buff="comforted",
+        satiety=38.0,
+        nutrition=32.0,
+        buff_duration=21600,
+    ),
+    Recipe(
+        "fish chowder",
+        ("fish", "dairy", "root"),
+        buff="hearty",
+        satiety=40.0,
+        nutrition=33.0,
+        buff_duration=21600,
+    ),
+    Recipe(
+        "lentil stew",
+        ("bean", "vegetable", "broth"),
+        buff="nourished",
+        satiety=40.0,
+        nutrition=36.0,
+        buff_duration=21600,
+    ),
+    Recipe(
+        "bean chili",
+        ("bean", "meat", "spice"),
+        buff="hearty",
+        satiety=42.0,
+        nutrition=34.0,
+        buff_duration=21600,
     ),
     Recipe(
         "hearty stew",
@@ -58,6 +139,83 @@ RECIPES: tuple[Recipe, ...] = (
         nutrition=35.0,
         buff_duration=21600,
     ),
+    # ---- Breads & baked goods ---------------------------------------------------------
+    Recipe("flatbread", ("grain", "herb"), buff="well-fed", satiety=22.0, nutrition=20.0),
+    Recipe("bread loaf", ("grain", "grain"), buff="well-fed", satiety=25.0, nutrition=22.0),
+    Recipe("cheese scone", ("grain", "cheese"), buff="well-fed", satiety=26.0, nutrition=24.0),
+    Recipe(
+        "dinner rolls",
+        ("grain", "dairy", "egg"),
+        buff="well-fed",
+        satiety=28.0,
+        nutrition=24.0,
+    ),
+    Recipe(
+        "herb focaccia",
+        ("grain", "grain", "herb"),
+        buff="well-fed",
+        satiety=30.0,
+        nutrition=26.0,
+        buff_duration=16200,
+    ),
+    # ---- Roasts & mains ---------------------------------------------------------------
+    Recipe("grilled fish", ("fish",), buff="well-fed", satiety=30.0, nutrition=28.0),
+    Recipe(
+        "stuffed peppers",
+        ("vegetable", "grain", "cheese"),
+        buff="satisfied",
+        satiety=36.0,
+        nutrition=32.0,
+        buff_duration=21600,
+    ),
+    Recipe(
+        "fish tacos",
+        ("fish", "grain", "vegetable"),
+        buff="satisfied",
+        satiety=38.0,
+        nutrition=34.0,
+        buff_duration=21600,
+    ),
+    Recipe(
+        "mushroom risotto",
+        ("mushroom", "grain", "cheese"),
+        buff="satisfied",
+        satiety=38.0,
+        nutrition=32.0,
+        buff_duration=21600,
+    ),
+    Recipe(
+        "grilled steak",
+        ("meat", "spice"),
+        buff="stuffed",
+        satiety=44.0,
+        nutrition=38.0,
+        buff_duration=28800,
+    ),
+    Recipe(
+        "roast chicken",
+        ("poultry", "herb"),
+        buff="stuffed",
+        satiety=46.0,
+        nutrition=38.0,
+        buff_duration=28800,
+    ),
+    Recipe(
+        "meatball pasta",
+        ("meat", "grain", "herb"),
+        buff="stuffed",
+        satiety=46.0,
+        nutrition=36.0,
+        buff_duration=28800,
+    ),
+    Recipe(
+        "seafood paella",
+        ("seafood", "grain", "vegetable"),
+        buff="stuffed",
+        satiety=48.0,
+        nutrition=40.0,
+        buff_duration=28800,
+    ),
     Recipe(
         "roast dinner",
         ("meat", "vegetable", "vegetable"),
@@ -66,6 +224,189 @@ RECIPES: tuple[Recipe, ...] = (
         nutrition=40.0,
         buff_duration=28800,
     ),
+    # ---- Salads & sides ---------------------------------------------------------------
+    Recipe(
+        "fruit salad",
+        ("fruit", "fruit", "citrus"),
+        buff="refreshed",
+        satiety=20.0,
+        nutrition=24.0,
+    ),
+    Recipe(
+        "garden salad",
+        ("vegetable", "vegetable"),
+        buff="refreshed",
+        satiety=20.0,
+        nutrition=25.0,
+    ),
+    Recipe(
+        "spring salad",
+        ("vegetable", "vegetable", "herb"),
+        buff="refreshed",
+        satiety=22.0,
+        nutrition=26.0,
+    ),
+    Recipe(
+        "caprese",
+        ("vegetable", "cheese", "herb"),
+        buff="refreshed",
+        satiety=24.0,
+        nutrition=26.0,
+    ),
+    Recipe(
+        "bean salad",
+        ("bean", "vegetable", "herb"),
+        buff="refreshed",
+        satiety=26.0,
+        nutrition=28.0,
+    ),
+    Recipe(
+        "roasted roots",
+        ("root", "root", "herb"),
+        buff="nourished",
+        satiety=30.0,
+        nutrition=28.0,
+        buff_duration=16200,
+    ),
+    # ---- Desserts & sweets ------------------------------------------------------------
+    Recipe(
+        "nut brittle",
+        ("nut", "sweet"),
+        buff="cheered",
+        satiety=18.0,
+        nutrition=16.0,
+    ),
+    Recipe(
+        "custard",
+        ("dairy", "egg", "sweet"),
+        buff="delighted",
+        satiety=26.0,
+        nutrition=18.0,
+        buff_duration=18000,
+    ),
+    Recipe(
+        "chocolate mousse",
+        ("chocolate", "dairy", "egg"),
+        buff="delighted",
+        satiety=28.0,
+        nutrition=16.0,
+        buff_duration=18000,
+    ),
+    Recipe(
+        "berry tart",
+        ("berry", "grain", "sweet"),
+        buff="delighted",
+        satiety=30.0,
+        nutrition=18.0,
+        buff_duration=18000,
+    ),
+    Recipe(
+        "honey cake",
+        ("grain", "egg", "honey"),
+        buff="delighted",
+        satiety=32.0,
+        nutrition=18.0,
+        buff_duration=18000,
+    ),
+    Recipe(
+        "apple crumble",
+        ("fruit", "grain", "honey"),
+        buff="delighted",
+        satiety=34.0,
+        nutrition=20.0,
+        buff_duration=18000,
+    ),
+    Recipe(
+        "fruit pie",
+        ("fruit", "grain", "sweet"),
+        buff="delighted",
+        satiety=35.0,
+        nutrition=20.0,
+        buff_duration=18000,
+    ),
+    # ---- Drinks -----------------------------------------------------------------------
+    Recipe(
+        "herbal tea",
+        ("tea", "herb"),
+        buff="refreshed",
+        satiety=8.0,
+        nutrition=6.0,
+        buff_duration=7200,
+    ),
+    Recipe(
+        "fresh lemonade",
+        ("citrus", "sweet"),
+        buff="refreshed",
+        satiety=10.0,
+        nutrition=10.0,
+        buff_duration=7200,
+    ),
+    Recipe(
+        "spiced cider",
+        ("fruit", "spice"),
+        buff="warmed",
+        satiety=12.0,
+        nutrition=12.0,
+        buff_duration=10800,
+    ),
+    Recipe(
+        "hot cocoa",
+        ("chocolate", "dairy", "sweet"),
+        buff="comforted",
+        satiety=14.0,
+        nutrition=14.0,
+        buff_duration=10800,
+    ),
+    Recipe(
+        "berry smoothie",
+        ("berry", "dairy", "honey"),
+        buff="refreshed",
+        satiety=16.0,
+        nutrition=20.0,
+        buff_duration=10800,
+    ),
+    # ---- Preserves (keep far longer than a fresh meal) --------------------------------
+    Recipe(
+        "berry jam",
+        ("berry", "sweet"),
+        buff="content",
+        satiety=12.0,
+        nutrition=14.0,
+        buff_duration=16200,
+        spoils_after=PRESERVE_SPOILS_AFTER,
+    ),
+    Recipe(
+        "fruit preserve",
+        ("fruit", "sweet"),
+        buff="content",
+        satiety=14.0,
+        nutrition=16.0,
+        buff_duration=16200,
+        spoils_after=PRESERVE_SPOILS_AFTER,
+    ),
+    Recipe(
+        "pickled vegetables",
+        ("vegetable", "spice"),
+        buff="content",
+        satiety=14.0,
+        nutrition=16.0,
+        buff_duration=16200,
+        spoils_after=PRESERVE_SPOILS_AFTER,
+    ),
+    Recipe(
+        "smoked fish",
+        ("fish", "spice"),
+        buff="sated",
+        satiety=20.0,
+        nutrition=22.0,
+        buff_duration=16200,
+        spoils_after=PRESERVE_SPOILS_AFTER,
+    ),
+)
+
+#: The public cookbook: the catalogue sorted deterministically from simplest to richest.
+RECIPES: tuple[Recipe, ...] = tuple(
+    sorted(_CATALOGUE, key=lambda recipe: (recipe.satiety, recipe.name))
 )
 
 #: Fast membership set for validating a caller-requested recipe name.

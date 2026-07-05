@@ -25,9 +25,27 @@ from bunnyland.core.handlers import (
     require_reachable_entity,
 )
 
+from .appliances import (
+    CATEGORY_APPLIANCE,
+    unlocked_appliance_recipes,
+    unlocked_categories,
+)
 from .components import IngredientComponent, StoveComponent
 from .prefabs import spawn_meal
-from .recipes import RECIPE_NAMES, find_recipe
+from .recipes import (
+    APPLIANCE_RECIPE_NAMES,
+    RECIPE_NAMES,
+    appliance_recipe_by_name,
+    find_recipe,
+)
+from .skill import (
+    CookingSkillImprovedEvent,
+    cooking_skill_of,
+    dish_experience,
+    grant_cooking_experience,
+    meal_quality,
+    skill_tier_name,
+)
 
 
 class MealCookedEvent(DomainEvent):
@@ -85,35 +103,66 @@ class CookHandler:
         if not ingredients:
             return rejected("you have no ingredients to cook with")
 
+        categories = unlocked_categories(ctx.world, character)
         requested = command.payload.get("recipe")
-        if requested is not None and requested not in RECIPE_NAMES:
-            return rejected("unknown recipe")
+        rejection = self._validate_recipe_name(requested, categories)
+        if rejection is not None:
+            return rejection
 
-        match = find_recipe(ingredients, name=requested)
+        extra = unlocked_appliance_recipes(categories)
+        match = find_recipe(ingredients, name=requested, extra=extra)
         if match is None:
             if requested is not None:
                 return rejected(f"you are missing ingredients for {requested}")
             return rejected("no recipe matches your ingredients")
 
         recipe, used_ids = match
+        quality = meal_quality(cooking_skill_of(character).experience)
         for ingredient_id in used_ids:
             _consume(ctx, character, ingredient_id)
-        meal = spawn_meal(ctx.world, recipe, ctx.epoch, holder=character)
+        meal = spawn_meal(ctx.world, recipe, ctx.epoch, holder=character, quality=quality)
+        skill, leveled_up = grant_cooking_experience(
+            character, dish_experience(recipe.satiety)
+        )
 
         room_id = container_of(character)
-        return ok(
+        room_str = str(room_id) if room_id is not None else None
+        events: list[DomainEvent] = [
             MealCookedEvent(
                 **ctx.event_base(
                     visibility=EventVisibility.ROOM,
                     actor_id=str(character_id),
-                    room_id=str(room_id) if room_id is not None else None,
+                    room_id=room_str,
                     target_ids=(str(stove.id), str(meal.id)),
                     stove_id=str(stove.id),
                     meal_id=str(meal.id),
                     recipe=recipe.name,
                 )
             )
-        )
+        ]
+        if leveled_up:
+            events.append(
+                CookingSkillImprovedEvent(
+                    **ctx.event_base(
+                        actor_id=str(character_id),
+                        tier=skill_tier_name(skill.experience),
+                        experience=skill.experience,
+                    )
+                )
+            )
+        return ok(*events)
+
+    def _validate_recipe_name(self, requested, categories):
+        """Reject an unknown or appliance-locked recipe name; ``None`` if it is cookable."""
+        if requested is None or requested in RECIPE_NAMES:
+            return None
+        if requested in APPLIANCE_RECIPE_NAMES:
+            recipe = appliance_recipe_by_name(requested)
+            if recipe.category not in categories:
+                appliance = CATEGORY_APPLIANCE[recipe.category]
+                return rejected(f"you need a {appliance} to cook {requested}")
+            return None
+        return rejected("unknown recipe")
 
     def _resolve_stove(self, ctx: HandlerContext, character, command: SubmittedCommand):
         """Return the stove entity to cook at, or a rejection HandlerResult."""

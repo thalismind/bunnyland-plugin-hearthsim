@@ -77,11 +77,16 @@ def spawn_meal(
     *,
     room_id=None,
     holder: Entity | None = None,
+    quality: float = 1.0,
 ) -> Entity:
     """Spawn the cooked meal for ``recipe`` (fresh as of ``epoch``).
 
     A meal is also a core ``FoodComponent`` item, so it is recognised as food by the base
     eat path; the cooking pack's ``eat-meal`` verb additionally applies the meal's buff.
+
+    ``quality`` (>= 1.0) is the cook's mastery multiplier from
+    :func:`~bunnyland_hearthsim.skill.meal_quality`; it lengthens the meal's buff so a more
+    skilled cook's food comforts longer. The default ``1.0`` leaves the recipe unchanged.
     """
     meal = spawn_entity(
         world,
@@ -95,7 +100,7 @@ def spawn_meal(
                 name=recipe.name,
                 buff=recipe.buff,
                 buff_magnitude=recipe.buff_magnitude,
-                buff_duration=recipe.buff_duration,
+                buff_duration=int(recipe.buff_duration * quality),
                 satiety=recipe.satiety,
                 nutrition=recipe.nutrition,
             ),

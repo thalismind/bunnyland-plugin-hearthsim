@@ -17,7 +17,13 @@ from relics import EntityId
 
 @dataclass(frozen=True)
 class Recipe:
-    """A dish: the ingredient tags it needs and the meal it yields."""
+    """A dish: the ingredient tags it needs and the meal it yields.
+
+    ``category`` groups dishes for appliances and contests. The default ``"general"`` is
+    what any plain stove can cook; the appliance categories (``"grilled"``, ``"smoked"``,
+    ``"baking"``) are only cookable when a matching appliance is within reach — see
+    :mod:`bunnyland_hearthsim.appliances`.
+    """
 
     name: str
     required_tags: tuple[str, ...]
@@ -27,6 +33,7 @@ class Recipe:
     satiety: float = 30.0
     nutrition: float = 20.0
     spoils_after: int = 86400  # one game day before the cooked meal spoils
+    category: str = "general"
 
 
 #: How long a preserved food keeps before spoiling — two game days, twice a normal meal.
@@ -412,6 +419,88 @@ RECIPES: tuple[Recipe, ...] = tuple(
 #: Fast membership set for validating a caller-requested recipe name.
 RECIPE_NAMES: frozenset[str] = frozenset(recipe.name for recipe in RECIPES)
 
+#: Appliance-gated recipes (mechanic 8). Each carries an appliance ``category`` and can only
+#: be cooked when a matching appliance (grill / smoker / oven) is within reach. They are kept
+#: out of :data:`RECIPES` so a plain stove still cooks the whole base cookbook and nothing
+#: more; :func:`find_recipe` folds in only the unlocked ones via its ``extra`` argument.
+_APPLIANCE_CATALOGUE: tuple[Recipe, ...] = (
+    # ---- Grill (open flame, char) -----------------------------------------------------
+    Recipe(
+        "grilled skewers",
+        ("meat", "vegetable", "herb"),
+        buff="stuffed",
+        satiety=44.0,
+        nutrition=38.0,
+        buff_duration=28800,
+        category="grilled",
+    ),
+    Recipe(
+        "charred peppers",
+        ("vegetable", "vegetable", "spice"),
+        buff="satisfied",
+        satiety=28.0,
+        nutrition=26.0,
+        buff_duration=18000,
+        category="grilled",
+    ),
+    # ---- Smoker (slow, preserving) ----------------------------------------------------
+    Recipe(
+        "smoked brisket",
+        ("meat", "spice", "herb"),
+        buff="stuffed",
+        satiety=48.0,
+        nutrition=40.0,
+        buff_duration=28800,
+        spoils_after=PRESERVE_SPOILS_AFTER,
+        category="smoked",
+    ),
+    Recipe(
+        "smoked trout",
+        ("fish", "herb", "spice"),
+        buff="sated",
+        satiety=32.0,
+        nutrition=30.0,
+        buff_duration=21600,
+        spoils_after=PRESERVE_SPOILS_AFTER,
+        category="smoked",
+    ),
+    # ---- Oven (wood-fired baking) -----------------------------------------------------
+    Recipe(
+        "wood-fired loaf",
+        ("grain", "grain", "seed"),
+        buff="well-fed",
+        satiety=30.0,
+        nutrition=28.0,
+        buff_duration=18000,
+        category="baking",
+    ),
+    Recipe(
+        "baked casserole",
+        ("root", "cheese", "broth"),
+        buff="hearty",
+        satiety=42.0,
+        nutrition=36.0,
+        buff_duration=21600,
+        category="baking",
+    ),
+)
+
+#: Appliance recipes, ordered simplest to richest like :data:`RECIPES`.
+APPLIANCE_RECIPES: tuple[Recipe, ...] = tuple(
+    sorted(_APPLIANCE_CATALOGUE, key=lambda recipe: (recipe.satiety, recipe.name))
+)
+
+#: Fast membership set for validating a caller-requested appliance recipe name.
+APPLIANCE_RECIPE_NAMES: frozenset[str] = frozenset(r.name for r in APPLIANCE_RECIPES)
+
+
+def appliance_recipe_by_name(name: str) -> Recipe | None:
+    """Return the appliance recipe with ``name``, or ``None`` if there is none."""
+    for recipe in APPLIANCE_RECIPES:
+        if recipe.name == name:
+            return recipe
+    return None
+
 
 def recipe_by_name(name: str) -> Recipe | None:
     """Return the recipe with ``name``, or ``None`` if it is not in the cookbook."""
@@ -443,13 +532,20 @@ def find_recipe(
     ingredients: Iterable[tuple[EntityId, frozenset[str]]],
     *,
     name: str | None = None,
+    extra: Sequence[Recipe] = (),
 ) -> tuple[Recipe, list[EntityId]] | None:
     """Find the best makeable recipe for ``ingredients`` (optionally forcing ``name``).
+
+    The base :data:`RECIPES` are always searched first (simplest to richest); ``extra``
+    recipes — the appliance recipes unlocked by a reachable appliance — are appended after,
+    so a plain stove keeps its exact v1 behaviour and appliance dishes only surface when
+    their appliance is present.
 
     Returns ``(recipe, consumed_ingredient_ids)`` or ``None`` when nothing can be cooked.
     """
     available = list(ingredients)
-    candidates = RECIPES if name is None else tuple(r for r in RECIPES if r.name == name)
+    pool = (*RECIPES, *extra)
+    candidates = pool if name is None else tuple(r for r in pool if r.name == name)
     for recipe in candidates:
         used = match_recipe(recipe, available)
         if used is not None:
@@ -458,9 +554,13 @@ def find_recipe(
 
 
 __all__ = [
+    "APPLIANCE_RECIPES",
+    "APPLIANCE_RECIPE_NAMES",
+    "PRESERVE_SPOILS_AFTER",
     "RECIPES",
     "RECIPE_NAMES",
     "Recipe",
+    "appliance_recipe_by_name",
     "find_recipe",
     "match_recipe",
     "recipe_by_name",

@@ -5,11 +5,19 @@ from __future__ import annotations
 from bunnyland.plugins import (
     CommandContribution,
     ContentContribution,
+    DependencyContribution,
     EcsContribution,
     Plugin,
     RuntimeContribution,
 )
 
+from .appliances import ApplianceComponent, appliance_fragments
+from .catering import (
+    CATERING_ACTION_DEFINITIONS,
+    CATERING_ACTION_HANDLERS,
+    CateredFor,
+    MealCateredEvent,
+)
 from .components import (
     BuffComponent,
     FreshnessComponent,
@@ -30,6 +38,17 @@ from .meals import (
     BuffExpiredEvent,
     MealEatenEvent,
 )
+from .skill import (
+    CookingSkillComponent,
+    CookingSkillImprovedEvent,
+    cooking_skill_fragments,
+)
+from .storyteller import (
+    CommunalFeastCalledEvent,
+    FeastStorytellerComponent,
+    feast_storyteller_fragments,
+    install_storyteller,
+)
 
 PLUGIN_ID = "bunnyland.hearthsim"
 
@@ -38,8 +57,20 @@ def plugin() -> Plugin:
     return Plugin(
         id=PLUGIN_ID,
         name="Bunnyland Hearthsim",
-        version="0.1.0",
+        version="0.2.0",
         default_enabled=True,
+        # Soft food-chain partners: hearthsim runs standalone, but ingredients flow in from
+        # the gatherers (wild/angler/aqua/garden) and its meals flow out to the festival
+        # feast. All are optional — declared here, never hard-imported.
+        dependencies=DependencyContribution(
+            recommends=(
+                "bunnyland.wildsim",
+                "bunnyland.anglersim",
+                "bunnyland.aquasim",
+                "bunnyland.gardensim",
+                "bunnyland.festivalsim",
+            ),
+        ),
         ecs=EcsContribution(
             components=(
                 IngredientComponent,
@@ -47,11 +78,23 @@ def plugin() -> Plugin:
                 MealComponent,
                 BuffComponent,
                 FreshnessComponent,
+                CookingSkillComponent,
+                ApplianceComponent,
+                FeastStorytellerComponent,
             ),
+            edges=(CateredFor,),
         ),
         commands=CommandContribution(
-            action_handlers=(*COOK_ACTION_HANDLERS, *MEAL_ACTION_HANDLERS),
-            action_definitions=(*COOK_ACTION_DEFINITIONS, *MEAL_ACTION_DEFINITIONS),
+            action_handlers=(
+                *COOK_ACTION_HANDLERS,
+                *MEAL_ACTION_HANDLERS,
+                *CATERING_ACTION_HANDLERS,
+            ),
+            action_definitions=(
+                *COOK_ACTION_DEFINITIONS,
+                *MEAL_ACTION_DEFINITIONS,
+                *CATERING_ACTION_DEFINITIONS,
+            ),
             typed_events=(
                 MealCookedEvent,
                 MealEatenEvent,
@@ -59,11 +102,21 @@ def plugin() -> Plugin:
                 BuffExpiredEvent,
                 FoodSpoiledEvent,
                 FeastEnjoyedEvent,
+                CookingSkillImprovedEvent,
+                MealCateredEvent,
+                CommunalFeastCalledEvent,
             ),
         ),
-        runtime=RuntimeContribution(service_factories=(install_hearthsim,)),
+        runtime=RuntimeContribution(
+            service_factories=(install_hearthsim, install_storyteller),
+        ),
         content=ContentContribution(
-            prompt_fragments=(hearthsim_fragments,),
+            prompt_fragments=(
+                hearthsim_fragments,
+                cooking_skill_fragments,
+                appliance_fragments,
+                feast_storyteller_fragments,
+            ),
             worldgen_hooks=(HearthWorldgenHook,),
         ),
     )

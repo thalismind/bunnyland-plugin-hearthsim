@@ -4,10 +4,10 @@ Catering is cooking *for a room*. A caterer with a reachable stove or appliance 
 ingredients lays on a spread and serves everyone present at once. It routes straight through
 core systems rather than reinventing any of them:
 
-- **hunger** — each diner's core :class:`~bunnyland.mechanics.needs.HungerComponent` is
+- **hunger** — each diner's core :class:`~bunnyland.foundation.needs.mechanics.HungerComponent` is
   relieved and a core ``FoodEatenEvent`` is emitted, so the shared affect reactor lifts every
   diner's mood exactly as it does for an ordinary meal.
-- **social** — the caterer's :class:`~bunnyland.mechanics.social.SocialBond` to each diner
+- **social** — the caterer's Foundation ``SocialBond`` to each diner
   (and back) warms; a full belly among friends builds affinity, familiarity, and trust.
 - **catering relationship** — a repeatable, structural bond is its own typed
   :class:`CateredFor` edge (one index), tallying how often and how much the caterer has fed
@@ -34,15 +34,15 @@ from bunnyland.core.handlers import (
     rejected,
     require_character,
 )
-from bunnyland.mechanics.meter import band, changed
-from bunnyland.mechanics.needs import (
+from bunnyland.foundation.meters.mechanics import band, changed
+from bunnyland.foundation.needs.mechanics import (
     FoodEatenEvent,
     HungerChangedEvent,
     HungerComponent,
     SocialNeedComponent,
     recover_daily_need,
 )
-from bunnyland.mechanics.social import adjust_bond
+from bunnyland.foundation.social.mechanics import adjust_bond
 from pydantic.dataclasses import dataclass
 from relics import Edge, World
 
@@ -157,9 +157,7 @@ class CaterHandler:
                 )
             record_catering(ctx.world, character_id, diner.id, dishes=1, epoch=ctx.epoch)
 
-        skill, leveled_up = grant_cooking_experience(
-            character, dish_experience(recipe.satiety)
-        )
+        skill, leveled_up = grant_cooking_experience(character, dish_experience(recipe.satiety))
         events.append(
             MealCateredEvent(
                 **ctx.event_base(
@@ -184,9 +182,7 @@ class CaterHandler:
                 )
             )
         room = ctx.world.get_entity(room_id) if room_id is not None else None
-        resolved = resolve_feast_incident(
-            ctx.world, room, ctx.epoch, actor_id=str(character_id)
-        )
+        resolved = resolve_feast_incident(ctx.world, room, ctx.epoch, actor_id=str(character_id))
         if resolved is not None:
             events.append(resolved)
         return ok(*events)

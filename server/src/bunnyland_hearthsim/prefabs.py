@@ -16,7 +16,7 @@ from bunnyland.core import (
     PortableComponent,
     spawn_entity,
 )
-from bunnyland.mechanics.consumables import ConsumableComponent, FoodComponent
+from bunnyland.foundation.consumables.components import ConsumableComponent, FoodComponent
 from relics import Entity, World
 
 from .components import FreshnessComponent, IngredientComponent, MealComponent, StoveComponent

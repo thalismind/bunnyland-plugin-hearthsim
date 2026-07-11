@@ -26,8 +26,8 @@ from bunnyland.core.handlers import (
     require_character,
     require_reachable_entity,
 )
-from bunnyland.mechanics.meter import band, changed
-from bunnyland.mechanics.needs import FoodEatenEvent, HungerChangedEvent, HungerComponent
+from bunnyland.foundation.meters.mechanics import band, changed
+from bunnyland.foundation.needs.mechanics import FoodEatenEvent, HungerChangedEvent, HungerComponent
 from relics import World
 
 from .components import BuffComponent, FreshnessComponent, MealComponent
@@ -91,9 +91,7 @@ class EatMealHandler:
 
         hunger = character.get_component(HungerComponent)
         new_meter = changed(hunger.meter, -satiety)
-        replace_component(
-            character, replace(hunger, meter=new_meter, last_ate_epoch=ctx.epoch)
-        )
+        replace_component(character, replace(hunger, meter=new_meter, last_ate_epoch=ctx.epoch))
 
         room_id = container_of(character)
         room_str = str(room_id) if room_id is not None else None
@@ -178,9 +176,7 @@ class BuffExpiryConsequence:
             if epoch >= buff.expires_at_epoch:
                 entity.remove_component(BuffComponent)
                 events.append(
-                    BuffExpiredEvent(
-                        **event_base(epoch, actor_id=str(entity.id), buff=buff.name)
-                    )
+                    BuffExpiredEvent(**event_base(epoch, actor_id=str(entity.id), buff=buff.name))
                 )
         return events
 

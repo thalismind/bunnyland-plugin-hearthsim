@@ -15,8 +15,8 @@ from bunnyland.core import (
 from bunnyland.core.commands import CommandCost, Lane, build_submitted_command
 from bunnyland.core.ecs import replace_component
 from bunnyland.core.handlers import HandlerContext
-from bunnyland.mechanics.meter import Meter
-from bunnyland.mechanics.needs import HungerComponent
+from bunnyland.foundation.meters.mechanics import Meter
+from bunnyland.foundation.needs.mechanics import HungerComponent
 
 from bunnyland_hearthsim import BuffComponent, FreshnessComponent, spawn_meal
 from bunnyland_hearthsim.meals import BuffExpiryConsequence, EatMealHandler

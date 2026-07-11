@@ -26,7 +26,7 @@ from .components import (
     StoveComponent,
 )
 from .cooking import COOK_ACTION_DEFINITIONS, COOK_ACTION_HANDLERS, MealCookedEvent
-from .enrichment import HearthWorldgenHook
+from .enrichment import HearthGenerationEnricher
 from .feasts import FeastEnjoyedEvent
 from .fragments import hearthsim_fragments
 from .freshness import FoodSpoiledEvent
@@ -117,7 +117,7 @@ def plugin() -> Plugin:
                 appliance_fragments,
                 feast_storyteller_fragments,
             ),
-            worldgen_hooks=(HearthWorldgenHook,),
+            generation_enrichers=(HearthGenerationEnricher(),),
         ),
     )
 

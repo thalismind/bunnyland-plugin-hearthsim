@@ -14,7 +14,7 @@ from dataclasses import replace
 
 from bunnyland.core.ecs import replace_component
 from bunnyland.core.events import DomainEvent, event_base
-from bunnyland.mechanics.consumables import FoodComponent
+from bunnyland.foundation.consumables.components import FoodComponent
 from relics import World
 
 from .components import FreshnessComponent

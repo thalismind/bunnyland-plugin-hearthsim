@@ -38,9 +38,7 @@ APPLIANCE_CATEGORIES: dict[str, tuple[str, ...]] = {
 
 #: recipe category -> the appliance kind that cooks it (for friendly rejection text).
 CATEGORY_APPLIANCE: dict[str, str] = {
-    category: kind
-    for kind, categories in APPLIANCE_CATEGORIES.items()
-    for category in categories
+    category: kind for kind, categories in APPLIANCE_CATEGORIES.items() for category in categories
 }
 
 
@@ -108,8 +106,7 @@ def appliance_fragments(world: World, character: Entity) -> list[str]:
         appliance = entity.get_component(ApplianceComponent)
         name = entity_name(entity, appliance.kind)
         dishes = ", ".join(
-            recipe.name
-            for recipe in unlocked_appliance_recipes(frozenset(appliance.categories))
+            recipe.name for recipe in unlocked_appliance_recipes(frozenset(appliance.categories))
         )
         if dishes:
             lines.append(f"A {name} here can cook {dishes}.")

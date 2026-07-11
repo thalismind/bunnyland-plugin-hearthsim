@@ -3,7 +3,7 @@
 The pack registers one storyteller incident of its own: every so often the settlement
 *hungers for a communal feast*. :class:`CommunalFeastConsequence` declares the incident in
 the busiest occupied room, reusing the **core** storyteller entities and events
-(:class:`~bunnyland.mechanics.storyteller.IncidentComponent`, ``IncidentStartedEvent``,
+(:class:`~bunnyland.foundation.storyteller.mechanics.IncidentComponent`, ``IncidentStartedEvent``,
 ``IncidentResolvedEvent``) rather than inventing a parallel system. Cooking for the room —
 sharing a meal or, best of all, catering the table — resolves it (see
 :func:`resolve_feast_incident`), so the headline mechanic answers the world pressure.
@@ -27,7 +27,7 @@ from bunnyland.core import (
 )
 from bunnyland.core.ecs import replace_component
 from bunnyland.core.events import DomainEvent, EventVisibility, event_base
-from bunnyland.mechanics.storyteller import (
+from bunnyland.foundation.storyteller.mechanics import (
     SECONDS_PER_DAY,
     IncidentComponent,
     IncidentResolvedEvent,

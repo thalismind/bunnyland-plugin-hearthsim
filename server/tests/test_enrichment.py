@@ -1,58 +1,51 @@
-from __future__ import annotations
-
 import asyncio
 
-from bunnyland.core import IdentityComponent, WorldActor, spawn_entity
-from bunnyland.core.components import GenerationIntentComponent
-from bunnyland.core.events import ObjectGeneratedEvent, event_base
-from bunnyland.plugins import apply_plugins, load_modules
+from bunnyland.core import WorldActor
+from bunnyland.plugins import apply_plugins
+from bunnyland.worldgen import ObjectSpec, RoomSpec, WorldProposal, instantiate
 
 from bunnyland_hearthsim import IngredientComponent, StoveComponent
+from bunnyland_hearthsim.plugin import bunnyland_plugins as _plugins
 
 
-def _actor():
+def _object(name, *, description="", tags=()):
     actor = WorldActor()
-    apply_plugins(load_modules(["bunnyland_hearthsim"]), actor)
-    return actor
-
-
-def _generate_object(actor, *, name, tags=(), description=""):
-    entity = spawn_entity(actor.world, [IdentityComponent(name=name, kind="item")])
-    event = ObjectGeneratedEvent(
-        **event_base(0),
-        seed="seed",
-        entity_id=str(entity.id),
-        entity_key=name,
-        entity_kind="object",
-        generation=GenerationIntentComponent(tags=tuple(tags), description=description),
-        object_key=name,
+    apply_plugins(_plugins(), actor)
+    result = asyncio.run(
+        instantiate(
+            actor,
+            WorldProposal(
+                seed="seed",
+                rooms=[RoomSpec(key="room", title="Room")],
+                objects=[
+                    ObjectSpec(
+                        key="item", name=name, room_key="room", description=description, tags=tags
+                    )
+                ],
+            ),
+        )
     )
-    asyncio.run(actor.bus.publish(event))
-    return entity
+    return actor.world.get_entity(result.objects["item"])
 
 
 def test_generated_oven_becomes_a_stove():
-    actor = _actor()
-    entity = _generate_object(actor, name="oven", tags=("kitchen", "appliance"))
-    assert entity.has_component(StoveComponent)
+    assert _object("oven", tags=("kitchen",)).has_component(StoveComponent)
 
 
 def test_generated_produce_gets_ingredient_tags():
-    actor = _actor()
-    entity = _generate_object(actor, name="carrot", description="a fresh orange vegetable")
-    assert entity.has_component(IngredientComponent)
-    assert "vegetable" in entity.get_component(IngredientComponent).tags
+    assert _object("carrot", description="a fresh orange vegetable").get_component(
+        IngredientComponent
+    ).tags == ("vegetable",)
 
 
 def test_generated_meat_and_broth_bone_is_multi_tagged():
-    actor = _actor()
-    entity = _generate_object(actor, name="soup bone", tags=("meat", "bone"))
-    assert entity.has_component(IngredientComponent)
-    assert set(entity.get_component(IngredientComponent).tags) == {"broth", "meat"}
+    assert _object("soup bone", tags=("meat", "bone")).get_component(IngredientComponent).tags == (
+        "broth",
+        "meat",
+    )
 
 
-def test_plain_object_is_not_marked():
-    actor = _actor()
-    entity = _generate_object(actor, name="lamp", tags=("furniture", "brass"))
-    assert not entity.has_component(StoveComponent)
-    assert not entity.has_component(IngredientComponent)
+def test_plain_object_is_ignored():
+    item = _object("spoon")
+    assert not item.has_component(StoveComponent)
+    assert not item.has_component(IngredientComponent)

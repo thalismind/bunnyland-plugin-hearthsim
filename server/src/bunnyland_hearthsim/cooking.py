@@ -121,9 +121,7 @@ class CookHandler:
         for ingredient_id in used_ids:
             _consume(ctx, character, ingredient_id)
         meal = spawn_meal(ctx.world, recipe, ctx.epoch, holder=character, quality=quality)
-        skill, leveled_up = grant_cooking_experience(
-            character, dish_experience(recipe.satiety)
-        )
+        skill, leveled_up = grant_cooking_experience(character, dish_experience(recipe.satiety))
 
         room_id = container_of(character)
         room_str = str(room_id) if room_id is not None else None

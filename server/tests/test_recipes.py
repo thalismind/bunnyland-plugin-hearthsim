@@ -14,9 +14,7 @@ from bunnyland_hearthsim.recipes import (
 
 def _pantry(*items):
     """Build a deterministic ``(id, tags)`` list from ``(seq, tags)`` pairs."""
-    return [
-        (EntityId(prefab="entity", sequence=seq), frozenset(tags)) for seq, tags in items
-    ]
+    return [(EntityId(prefab="entity", sequence=seq), frozenset(tags)) for seq, tags in items]
 
 
 def _minimal_pantry(recipe):

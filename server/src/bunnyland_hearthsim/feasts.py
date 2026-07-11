@@ -11,8 +11,8 @@ from __future__ import annotations
 
 from bunnyland.core import CharacterComponent, container_of, contents
 from bunnyland.core.events import DomainEvent
-from bunnyland.mechanics.needs import SocialNeedComponent, recover_daily_need
-from bunnyland.mechanics.social import adjust_bond
+from bunnyland.foundation.needs.mechanics import SocialNeedComponent, recover_daily_need
+from bunnyland.foundation.social.mechanics import adjust_bond
 from relics import Entity, World
 
 #: How much a shared meal warms each pairwise bond and relieves the social need.

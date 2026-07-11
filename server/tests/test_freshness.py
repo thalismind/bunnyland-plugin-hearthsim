@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from bunnyland.core import RoomComponent, WorldActor, spawn_entity
-from bunnyland.mechanics.consumables import FoodComponent
+from bunnyland.foundation.consumables.components import FoodComponent
 
 from bunnyland_hearthsim import FreshnessComponent, SpoilageConsequence, freshness_state, spawn_meal
 from bunnyland_hearthsim.freshness import FRESH, SPOILED, STALE

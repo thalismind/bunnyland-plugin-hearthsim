@@ -11,9 +11,9 @@ from bunnyland.core import (
 )
 from bunnyland.core.commands import CommandCost, Lane, build_submitted_command
 from bunnyland.core.handlers import HandlerContext
-from bunnyland.mechanics.meter import Meter
-from bunnyland.mechanics.needs import HungerComponent, SocialNeedComponent
-from bunnyland.mechanics.social import bond_between
+from bunnyland.foundation.meters.mechanics import Meter
+from bunnyland.foundation.needs.mechanics import HungerComponent, SocialNeedComponent
+from bunnyland.foundation.social.mechanics import bond_between
 
 from bunnyland_hearthsim import diners_in_room, share_feast, spawn_meal
 from bunnyland_hearthsim.meals import EatMealHandler

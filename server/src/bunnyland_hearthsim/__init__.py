@@ -36,7 +36,7 @@ from .cooking import (
     CookHandler,
     MealCookedEvent,
 )
-from .enrichment import HearthWorldgenHook
+from .enrichment import HearthGenerationEnricher
 from .feasts import FeastEnjoyedEvent, diners_in_room, share_feast
 from .fragments import hearthsim_fragments
 from .freshness import (
@@ -116,7 +116,7 @@ __all__ = [
     "FeastStorytellerComponent",
     "FoodSpoiledEvent",
     "FreshnessComponent",
-    "HearthWorldgenHook",
+    "HearthGenerationEnricher",
     "IngredientComponent",
     "MealCateredEvent",
     "MealComponent",

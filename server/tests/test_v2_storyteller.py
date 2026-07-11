@@ -11,7 +11,7 @@ from bunnyland.core import (
     WorldActor,
     spawn_entity,
 )
-from bunnyland.mechanics.storyteller import IncidentComponent, IncidentStartedEvent
+from bunnyland.foundation.storyteller.mechanics import IncidentComponent, IncidentStartedEvent
 
 from bunnyland_hearthsim.storyteller import (
     INCIDENT_KIND,

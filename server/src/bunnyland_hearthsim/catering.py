@@ -23,8 +23,8 @@ from __future__ import annotations
 from dataclasses import replace
 
 from bunnyland.core import Contains
-from bunnyland.core.actions import ActionDefinition
-from bunnyland.core.commands import CommandCost, Lane, SubmittedCommand
+from bunnyland.core.actions import ActionDefinition, ActionEffort, effort_cost
+from bunnyland.core.commands import Lane, SubmittedCommand
 from bunnyland.core.ecs import container_of, replace_component
 from bunnyland.core.events import DomainEvent, EventVisibility
 from bunnyland.core.handlers import (
@@ -223,7 +223,7 @@ CATER_DEF = ActionDefinition(
         "fills their bellies, warms your bonds with them, and answers any call for a feast."
     ),
     lane=Lane.WORLD,
-    cost=CommandCost(action=1),
+    cost=effort_cost(action=ActionEffort.MAJOR),
     arguments={},
 )
 

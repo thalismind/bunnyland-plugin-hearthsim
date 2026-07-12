@@ -12,8 +12,8 @@ Validation order follows the project convention: invalid id -> missing entity ->
 from __future__ import annotations
 
 from bunnyland.core import Contains, contents, reachable_ids
-from bunnyland.core.actions import ActionArgument, ActionDefinition
-from bunnyland.core.commands import CommandCost, Lane, SubmittedCommand
+from bunnyland.core.actions import ActionArgument, ActionDefinition, ActionEffort, effort_cost
+from bunnyland.core.commands import Lane, SubmittedCommand
 from bunnyland.core.ecs import container_of
 from bunnyland.core.events import DomainEvent, EventVisibility
 from bunnyland.core.handlers import (
@@ -193,7 +193,7 @@ COOK_DEF = ActionDefinition(
         "Optionally name a recipe or a specific stove."
     ),
     lane=Lane.WORLD,
-    cost=CommandCost(action=1),
+    cost=effort_cost(action=ActionEffort.EXTENDED),
     arguments={
         "stove_id": ActionArgument(
             title="Stove",

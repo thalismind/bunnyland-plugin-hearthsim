@@ -14,8 +14,8 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from bunnyland.core.actions import ActionArgument, ActionDefinition
-from bunnyland.core.commands import CommandCost, Lane, SubmittedCommand
+from bunnyland.core.actions import ActionArgument, ActionDefinition, ActionEffort, effort_cost
+from bunnyland.core.commands import Lane, SubmittedCommand
 from bunnyland.core.ecs import container_of, remove_from_container, replace_component
 from bunnyland.core.events import DomainEvent, EventVisibility, event_base
 from bunnyland.core.handlers import (
@@ -189,7 +189,7 @@ EAT_MEAL_DEF = ActionDefinition(
         "timed buff; eating with others in the room makes it a shared feast."
     ),
     lane=Lane.WORLD,
-    cost=CommandCost(action=1),
+    cost=effort_cost(action=ActionEffort.ROUTINE),
     arguments={
         "meal_id": ActionArgument(
             title="Meal",

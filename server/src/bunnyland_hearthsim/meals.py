@@ -16,22 +16,36 @@ from dataclasses import replace
 
 from bunnyland.core.actions import ActionArgument, ActionDefinition, ActionEffort, effort_cost
 from bunnyland.core.commands import Lane, SubmittedCommand
-from bunnyland.core.ecs import container_of, remove_from_container, replace_component
+from bunnyland.core.ecs import container_of
 from bunnyland.core.events import DomainEvent, EventVisibility, event_base
 from bunnyland.core.handlers import (
     HandlerContext,
     HandlerResult,
-    ok,
+    planned,
     rejected,
     require_character,
     require_reachable_entity,
 )
+from bunnyland.core.mutations import AddEdge, DeleteEntity, MutationPlan, SetComponent
 from bunnyland.foundation.meters.mechanics import band, changed
-from bunnyland.foundation.needs.mechanics import FoodEatenEvent, HungerChangedEvent, HungerComponent
+from bunnyland.foundation.needs.mechanics import (
+    FoodEatenEvent,
+    HungerChangedEvent,
+    HungerComponent,
+    SocialNeedComponent,
+    recovered_daily_need,
+)
+from bunnyland.foundation.social.mechanics import adjusted_bond
 from relics import World
 
 from .components import BuffComponent, FreshnessComponent, MealComponent
-from .feasts import FeastEnjoyedEvent, share_feast
+from .feasts import (
+    FEAST_AFFINITY,
+    FEAST_FAMILIARITY,
+    FEAST_SOCIAL_RECOVERY,
+    FeastEnjoyedEvent,
+    diners_in_room,
+)
 
 #: A spoiled meal is unpleasant: it fills far less and grants no buff.
 SPOILED_SATIETY_FACTOR = 0.4
@@ -91,7 +105,12 @@ class EatMealHandler:
 
         hunger = character.get_component(HungerComponent)
         new_meter = changed(hunger.meter, -satiety)
-        replace_component(character, replace(hunger, meter=new_meter, last_ate_epoch=ctx.epoch))
+        operations = [
+            SetComponent(
+                character_id,
+                replace(hunger, meter=new_meter, last_ate_epoch=ctx.epoch),
+            )
+        ]
 
         room_id = container_of(character)
         room_str = str(room_id) if room_id is not None else None
@@ -127,14 +146,16 @@ class EatMealHandler:
 
         if not spoiled:
             expires_at = ctx.epoch + meal_component.buff_duration
-            replace_component(
-                character,
-                BuffComponent(
-                    name=meal_component.buff,
-                    magnitude=meal_component.buff_magnitude,
-                    started_at_epoch=ctx.epoch,
-                    expires_at_epoch=expires_at,
-                ),
+            operations.append(
+                SetComponent(
+                    character_id,
+                    BuffComponent(
+                        name=meal_component.buff,
+                        magnitude=meal_component.buff_magnitude,
+                        started_at_epoch=ctx.epoch,
+                        expires_at_epoch=expires_at,
+                    ),
+                )
             )
             events.append(
                 BuffAppliedEvent(
@@ -146,8 +167,50 @@ class EatMealHandler:
                 )
             )
 
-        diners = share_feast(ctx.world, character, ctx.epoch)
+        diners = diners_in_room(ctx.world, character)
         if diners:
+            warmth = {"affinity": FEAST_AFFINITY, "familiarity": FEAST_FAMILIARITY}
+            for diner in diners:
+                operations.extend(
+                    (
+                        AddEdge(
+                            character_id,
+                            diner.id,
+                            adjusted_bond(ctx.world, character_id, diner.id, warmth),
+                        ),
+                        AddEdge(
+                            diner.id,
+                            character_id,
+                            adjusted_bond(ctx.world, diner.id, character_id, warmth),
+                        ),
+                    )
+                )
+                if diner.has_component(SocialNeedComponent):
+                    operations.append(
+                        SetComponent(
+                            diner.id,
+                            recovered_daily_need(
+                                diner,
+                                SocialNeedComponent,
+                                FEAST_SOCIAL_RECOVERY,
+                                ctx.epoch,
+                                timestamp_field="last_social_epoch",
+                            ),
+                        )
+                    )
+            if character.has_component(SocialNeedComponent):
+                operations.append(
+                    SetComponent(
+                        character_id,
+                        recovered_daily_need(
+                            character,
+                            SocialNeedComponent,
+                            FEAST_SOCIAL_RECOVERY,
+                            ctx.epoch,
+                            timestamp_field="last_social_epoch",
+                        ),
+                    )
+                )
             events.append(
                 FeastEnjoyedEvent(
                     **ctx.event_base(
@@ -161,9 +224,8 @@ class EatMealHandler:
                 )
             )
 
-        remove_from_container(ctx.world, meal_id)
-        ctx.world.remove(meal_id)
-        return ok(*events)
+        operations.append(DeleteEntity(meal_id))
+        return planned(MutationPlan(tuple(operations)), *events)
 
 
 class BuffExpiryConsequence:

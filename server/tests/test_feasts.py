@@ -14,6 +14,7 @@ from bunnyland.core.handlers import HandlerContext
 from bunnyland.foundation.meters.mechanics import Meter
 from bunnyland.foundation.needs.mechanics import HungerComponent, SocialNeedComponent
 from bunnyland.foundation.social.mechanics import bond_between
+from conftest import execute_handler
 
 from bunnyland_hearthsim import diners_in_room, share_feast, spawn_meal
 from bunnyland_hearthsim.meals import EatMealHandler
@@ -72,7 +73,7 @@ def test_eat_meal_emits_feast_event_with_company():
         lane=Lane.WORLD,
         payload={"meal_id": str(meal.id)},
     )
-    result = EatMealHandler().execute(HandlerContext(world=actor.world, epoch=0), command)
+    result = execute_handler(EatMealHandler(), HandlerContext(world=actor.world, epoch=0), command)
 
     assert result.ok
     feast = next(e for e in result.events if type(e).__name__ == "FeastEnjoyedEvent")
@@ -94,7 +95,7 @@ def test_eat_meal_alone_emits_no_feast_event():
         lane=Lane.WORLD,
         payload={"meal_id": str(meal.id)},
     )
-    result = EatMealHandler().execute(HandlerContext(world=actor.world, epoch=0), command)
+    result = execute_handler(EatMealHandler(), HandlerContext(world=actor.world, epoch=0), command)
 
     assert result.ok
     assert not any(type(e).__name__ == "FeastEnjoyedEvent" for e in result.events)

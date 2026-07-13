@@ -13,6 +13,7 @@ from bunnyland.core import (
 )
 from bunnyland.core.commands import CommandCost, Lane, build_submitted_command
 from bunnyland.core.handlers import HandlerContext
+from conftest import execute_handler
 
 from bunnyland_hearthsim import MealComponent, spawn_ingredient, spawn_stove
 from bunnyland_hearthsim.appliances import (
@@ -49,7 +50,9 @@ def _cmd(character_id, payload):
 
 
 def _cook(actor, cook, payload):
-    return CookHandler().execute(HandlerContext(world=actor.world, epoch=0), _cmd(cook.id, payload))
+    return execute_handler(
+        CookHandler(), HandlerContext(world=actor.world, epoch=0), _cmd(cook.id, payload)
+    )
 
 
 def test_appliance_categories_lookup():

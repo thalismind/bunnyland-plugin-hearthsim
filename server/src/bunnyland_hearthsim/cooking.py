@@ -11,7 +11,15 @@ Validation order follows the project convention: invalid id -> missing entity ->
 
 from __future__ import annotations
 
-from bunnyland.core import Contains, contents, reachable_ids
+from bunnyland.core import (
+    ContainmentMode,
+    Contains,
+    HoldableComponent,
+    IdentityComponent,
+    PortableComponent,
+    contents,
+    reachable_ids,
+)
 from bunnyland.core.actions import ActionArgument, ActionDefinition, ActionEffort, effort_cost
 from bunnyland.core.commands import Lane, SubmittedCommand
 from bunnyland.core.ecs import container_of
@@ -19,19 +27,27 @@ from bunnyland.core.events import DomainEvent, EventVisibility
 from bunnyland.core.handlers import (
     HandlerContext,
     HandlerResult,
-    ok,
+    planned,
     rejected,
     require_character,
     require_reachable_entity,
 )
+from bunnyland.core.mutations import (
+    AddEdge,
+    AddEntity,
+    DeleteEntity,
+    EntityReference,
+    MutationPlan,
+    SetComponent,
+)
+from bunnyland.foundation.consumables.components import ConsumableComponent, FoodComponent
 
 from .appliances import (
     CATEGORY_APPLIANCE,
     unlocked_appliance_recipes,
     unlocked_categories,
 )
-from .components import IngredientComponent, StoveComponent
-from .prefabs import spawn_meal
+from .components import FreshnessComponent, IngredientComponent, MealComponent, StoveComponent
 from .recipes import (
     APPLIANCE_RECIPE_NAMES,
     RECIPE_NAMES,
@@ -40,9 +56,9 @@ from .recipes import (
 )
 from .skill import (
     CookingSkillImprovedEvent,
+    advanced_cooking_skill,
     cooking_skill_of,
     dish_experience,
-    grant_cooking_experience,
     meal_quality,
     skill_tier_name,
 )
@@ -80,11 +96,6 @@ def _inventory_ingredients(world, character) -> list[tuple[object, frozenset[str
     return sorted(gathered, key=lambda pair: str(pair[0]))
 
 
-def _consume(ctx: HandlerContext, character, ingredient_id) -> None:
-    character.remove_relationship(Contains, ingredient_id)
-    ctx.world.remove(ingredient_id)
-
-
 class CookHandler:
     """Cook a meal at a reachable stove from ingredients in the character's inventory."""
 
@@ -118,22 +129,49 @@ class CookHandler:
 
         recipe, used_ids = match
         quality = meal_quality(cooking_skill_of(character).experience)
-        for ingredient_id in used_ids:
-            _consume(ctx, character, ingredient_id)
-        meal = spawn_meal(ctx.world, recipe, ctx.epoch, holder=character, quality=quality)
-        skill, leveled_up = grant_cooking_experience(character, dish_experience(recipe.satiety))
+        skill, leveled_up = advanced_cooking_skill(character, dish_experience(recipe.satiety))
+        meal_ref = EntityReference()
+        meal_component = MealComponent(
+            name=recipe.name,
+            buff=recipe.buff,
+            buff_magnitude=recipe.buff_magnitude,
+            buff_duration=int(recipe.buff_duration * quality),
+            satiety=recipe.satiety,
+            nutrition=recipe.nutrition,
+        )
+        operations = [
+            AddEntity(
+                (
+                    IdentityComponent(name=recipe.name, kind="item", tags=("hearthsim", "meal")),
+                    PortableComponent(),
+                    HoldableComponent(slot="hand"),
+                    ConsumableComponent(current_uses=1, max_uses=1),
+                    FoodComponent(nutrition=recipe.nutrition, satiety=recipe.satiety),
+                    meal_component,
+                    FreshnessComponent(cooked_at_epoch=ctx.epoch, spoils_after=recipe.spoils_after),
+                ),
+                reference=meal_ref,
+            ),
+            AddEdge(
+                character_id,
+                meal_ref,
+                Contains(mode=ContainmentMode.INVENTORY),
+            ),
+            SetComponent(character_id, skill),
+            *(DeleteEntity(ingredient_id) for ingredient_id in used_ids),
+        ]
 
         room_id = container_of(character)
         room_str = str(room_id) if room_id is not None else None
-        events: list[DomainEvent] = [
-            MealCookedEvent(
+        events = [
+            lambda: MealCookedEvent(
                 **ctx.event_base(
                     visibility=EventVisibility.ROOM,
                     actor_id=str(character_id),
                     room_id=room_str,
-                    target_ids=(str(stove.id), str(meal.id)),
+                    target_ids=(str(stove.id), str(meal_ref.require())),
                     stove_id=str(stove.id),
-                    meal_id=str(meal.id),
+                    meal_id=str(meal_ref.require()),
                     recipe=recipe.name,
                 )
             )
@@ -148,7 +186,7 @@ class CookHandler:
                     )
                 )
             )
-        return ok(*events)
+        return planned(MutationPlan(tuple(operations)), *events)
 
     def _validate_recipe_name(self, requested, categories):
         """Reject an unknown or appliance-locked recipe name; ``None`` if it is cookable."""

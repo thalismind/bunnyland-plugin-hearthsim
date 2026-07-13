@@ -13,6 +13,7 @@ from bunnyland.core import (
 )
 from bunnyland.core.commands import CommandCost, Lane, build_submitted_command
 from bunnyland.core.handlers import HandlerContext
+from conftest import execute_handler
 
 from bunnyland_hearthsim import holder_of, room_of, spawn_ingredient, spawn_stove
 from bunnyland_hearthsim.cooking import CookHandler
@@ -56,7 +57,8 @@ def test_cook_at_a_named_stove_and_level_up():
     spawn_ingredient(actor.world, name="lettuce", tags=("vegetable",), holder=cook)
     spawn_ingredient(actor.world, name="tomato", tags=("vegetable",), holder=cook)
 
-    result = CookHandler().execute(
+    result = execute_handler(
+        CookHandler(),
         HandlerContext(world=actor.world, epoch=0),
         _cmd(cook.id, {"stove_id": str(stove.id), "recipe": "garden salad"}),
     )

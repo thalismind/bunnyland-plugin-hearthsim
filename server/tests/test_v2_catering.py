@@ -17,6 +17,7 @@ from bunnyland.foundation.meters.mechanics import Meter
 from bunnyland.foundation.needs.mechanics import HungerComponent, SocialNeedComponent
 from bunnyland.foundation.social.mechanics import bond_between
 from bunnyland.foundation.storyteller.mechanics import IncidentComponent, IncidentResolvedEvent
+from conftest import execute_handler
 
 from bunnyland_hearthsim import spawn_ingredient, spawn_stove
 from bunnyland_hearthsim.catering import (
@@ -76,7 +77,7 @@ def _cater(actor, caterer, epoch=0):
         lane=Lane.WORLD,
         payload={},
     )
-    return CaterHandler().execute(HandlerContext(world=actor.world, epoch=epoch), command)
+    return execute_handler(CaterHandler(), HandlerContext(world=actor.world, epoch=epoch), command)
 
 
 def test_cater_feeds_the_room_warms_bonds_and_levels_up():
@@ -187,7 +188,8 @@ def test_cater_rejections():
 
     # invalid character id
     stray = _caterer(actor, room)
-    bad = CaterHandler().execute(
+    bad = execute_handler(
+        CaterHandler(),
         HandlerContext(world=actor.world, epoch=0),
         build_submitted_command(
             character_id="???",

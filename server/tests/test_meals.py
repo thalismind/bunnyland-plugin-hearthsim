@@ -17,6 +17,7 @@ from bunnyland.core.ecs import replace_component
 from bunnyland.core.handlers import HandlerContext
 from bunnyland.foundation.meters.mechanics import Meter
 from bunnyland.foundation.needs.mechanics import HungerComponent
+from conftest import execute_handler
 
 from bunnyland_hearthsim import BuffComponent, FreshnessComponent, spawn_meal
 from bunnyland_hearthsim.meals import BuffExpiryConsequence, EatMealHandler
@@ -65,7 +66,7 @@ def test_every_recipe_grants_its_buff_when_eaten(recipe):
     actor, _room, eater = _scenario(hungry=90.0)
     meal = spawn_meal(actor.world, recipe, epoch=0, holder=eater)
 
-    result = EatMealHandler().execute(_ctx(actor), _cmd(eater.id, meal.id))
+    result = execute_handler(EatMealHandler(), _ctx(actor), _cmd(eater.id, meal.id))
 
     assert result.ok
     buff = eater.get_component(BuffComponent)
@@ -77,7 +78,7 @@ def test_eating_a_meal_restores_hunger_and_applies_buff():
     actor, _room, eater = _scenario(hungry=60.0)
     meal = spawn_meal(actor.world, recipe_by_name("hearty stew"), epoch=0, holder=eater)
 
-    result = EatMealHandler().execute(_ctx(actor), _cmd(eater.id, meal.id))
+    result = execute_handler(EatMealHandler(), _ctx(actor), _cmd(eater.id, meal.id))
 
     assert result.ok
     # Hunger fell by the meal's satiety (45 for stew).
@@ -92,7 +93,7 @@ def test_eating_emits_core_food_event():
     actor, _room, eater = _scenario()
     meal = spawn_meal(actor.world, recipe_by_name("garden salad"), epoch=0, holder=eater)
 
-    result = EatMealHandler().execute(_ctx(actor), _cmd(eater.id, meal.id))
+    result = execute_handler(EatMealHandler(), _ctx(actor), _cmd(eater.id, meal.id))
 
     kinds = {type(event).__name__ for event in result.events}
     assert "FoodEatenEvent" in kinds
@@ -106,7 +107,7 @@ def test_spoiled_meal_gives_no_buff_and_less_satiety():
     freshness = meal.get_component(FreshnessComponent)
     replace_component(meal, replace(freshness, spoiled=True))
 
-    result = EatMealHandler().execute(_ctx(actor), _cmd(eater.id, meal.id))
+    result = execute_handler(EatMealHandler(), _ctx(actor), _cmd(eater.id, meal.id))
 
     assert result.ok
     assert not eater.has_component(BuffComponent)
@@ -120,7 +121,7 @@ def test_spoiled_meal_gives_no_buff_and_less_satiety():
 def test_buff_expires_after_its_duration():
     actor, _room, eater = _scenario()
     meal = spawn_meal(actor.world, recipe_by_name("garden salad"), epoch=0, holder=eater)
-    EatMealHandler().execute(_ctx(actor, epoch=0), _cmd(eater.id, meal.id))
+    execute_handler(EatMealHandler(), _ctx(actor, epoch=0), _cmd(eater.id, meal.id))
     buff = eater.get_component(BuffComponent)
     assert buff.expires_at_epoch == 14400  # garden salad buff_duration, cooked at epoch 0
 
@@ -139,7 +140,7 @@ def test_eat_meal_rejects_non_meal_item():
     rock = spawn_entity(actor.world, [IdentityComponent(name="rock", kind="item")])
     eater.add_relationship(Contains(mode=ContainmentMode.INVENTORY), rock.id)
 
-    result = EatMealHandler().execute(_ctx(actor), _cmd(eater.id, rock.id))
+    result = execute_handler(EatMealHandler(), _ctx(actor), _cmd(eater.id, rock.id))
 
     assert not result.ok
     assert result.reason == "that is not a meal"
@@ -150,7 +151,7 @@ def test_eat_meal_rejects_unreachable_meal():
     other_room = spawn_entity(actor.world, [RoomComponent(title="Cellar")])
     meal = spawn_meal(actor.world, recipe_by_name("garden salad"), epoch=0, room_id=other_room.id)
 
-    result = EatMealHandler().execute(_ctx(actor), _cmd(eater.id, meal.id))
+    result = execute_handler(EatMealHandler(), _ctx(actor), _cmd(eater.id, meal.id))
 
     assert not result.ok
     assert result.reason == "the meal is not within reach"
@@ -165,7 +166,7 @@ def test_eat_meal_rejects_character_without_hunger():
     room.add_relationship(Contains(mode=ContainmentMode.ROOM_CONTENT), eater.id)
     meal = spawn_meal(actor.world, recipe_by_name("garden salad"), epoch=0, holder=eater)
 
-    result = EatMealHandler().execute(_ctx(actor), _cmd(eater.id, meal.id))
+    result = execute_handler(EatMealHandler(), _ctx(actor), _cmd(eater.id, meal.id))
 
     assert not result.ok
     assert result.reason == "character cannot eat"

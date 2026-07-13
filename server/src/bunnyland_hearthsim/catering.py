@@ -22,27 +22,28 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from bunnyland.core import Contains
 from bunnyland.core.actions import ActionDefinition, ActionEffort, effort_cost
 from bunnyland.core.commands import Lane, SubmittedCommand
-from bunnyland.core.ecs import container_of, replace_component
+from bunnyland.core.ecs import container_of
 from bunnyland.core.events import DomainEvent, EventVisibility
 from bunnyland.core.handlers import (
     HandlerContext,
     HandlerResult,
-    ok,
+    planned,
     rejected,
     require_character,
 )
+from bunnyland.core.mutations import AddEdge, DeleteEntity, MutationPlan, SetComponent
 from bunnyland.foundation.meters.mechanics import band, changed
 from bunnyland.foundation.needs.mechanics import (
     FoodEatenEvent,
     HungerChangedEvent,
     HungerComponent,
     SocialNeedComponent,
-    recover_daily_need,
+    recovered_daily_need,
 )
-from bunnyland.foundation.social.mechanics import adjust_bond
+from bunnyland.foundation.social.mechanics import adjusted_bond
+from bunnyland.foundation.storyteller.mechanics import IncidentComponent, IncidentResolvedEvent
 from pydantic.dataclasses import dataclass
 from relics import Edge, World
 
@@ -52,13 +53,13 @@ from .feasts import diners_in_room
 from .recipes import find_recipe
 from .skill import (
     CookingSkillImprovedEvent,
+    advanced_cooking_skill,
     catering_capacity,
     cooking_skill_of,
     dish_experience,
-    grant_cooking_experience,
     skill_tier_name,
 )
-from .storyteller import resolve_feast_incident
+from .storyteller import INCIDENT_KIND, pending_feast_incident
 
 #: How catering warms the caterer<->diner bond, and relieves each diner's loneliness.
 CATER_AFFINITY = 0.08
@@ -94,14 +95,19 @@ def catering_bond(world: World, caterer_id, diner_id) -> CateredFor | None:
 
 def record_catering(world: World, caterer_id, diner_id, *, dishes: int, epoch: int) -> CateredFor:
     """Strengthen (or open) the caterer->diner :class:`CateredFor` edge."""
+    updated = updated_catering(world, caterer_id, diner_id, dishes=dishes, epoch=epoch)
+    world.get_entity(caterer_id).add_relationship(updated, diner_id)
+    return updated
+
+
+def updated_catering(world: World, caterer_id, diner_id, *, dishes: int, epoch: int) -> CateredFor:
+    """Build the strengthened catering edge without mutating the world."""
     current = catering_bond(world, caterer_id, diner_id) or CateredFor()
-    updated = CateredFor(
+    return CateredFor(
         times=current.times + 1,
         total_dishes=current.total_dishes + dishes,
         last_epoch=epoch,
     )
-    world.get_entity(caterer_id).add_relationship(updated, diner_id)
-    return updated
 
 
 class CaterHandler:
@@ -131,9 +137,7 @@ class CaterHandler:
 
         capacity = catering_capacity(cooking_skill_of(character).experience)
         served = diners[:capacity]
-        for ingredient_id in used_ids:
-            character.remove_relationship(Contains, ingredient_id)
-            ctx.world.remove(ingredient_id)
+        operations = []
 
         room_id = container_of(character)
         room_str = str(room_id) if room_id is not None else None
@@ -144,20 +148,48 @@ class CaterHandler:
         }
         events: list[DomainEvent] = []
         for diner in served:
-            self._feed(ctx, diner, recipe.satiety, room_str, events)
-            adjust_bond(ctx.world, character_id, diner.id, warmth)
-            adjust_bond(ctx.world, diner.id, character_id, warmth)
-            if diner.has_component(SocialNeedComponent):
-                recover_daily_need(
-                    diner,
-                    SocialNeedComponent,
-                    CATER_SOCIAL_RECOVERY,
-                    ctx.epoch,
-                    timestamp_field="last_social_epoch",
+            self._feed(ctx, diner, recipe.satiety, room_str, events, operations)
+            operations.extend(
+                (
+                    AddEdge(
+                        character_id,
+                        diner.id,
+                        adjusted_bond(ctx.world, character_id, diner.id, warmth),
+                    ),
+                    AddEdge(
+                        diner.id,
+                        character_id,
+                        adjusted_bond(ctx.world, diner.id, character_id, warmth),
+                    ),
+                    AddEdge(
+                        character_id,
+                        diner.id,
+                        updated_catering(
+                            ctx.world,
+                            character_id,
+                            diner.id,
+                            dishes=1,
+                            epoch=ctx.epoch,
+                        ),
+                    ),
                 )
-            record_catering(ctx.world, character_id, diner.id, dishes=1, epoch=ctx.epoch)
+            )
+            if diner.has_component(SocialNeedComponent):
+                operations.append(
+                    SetComponent(
+                        diner.id,
+                        recovered_daily_need(
+                            diner,
+                            SocialNeedComponent,
+                            CATER_SOCIAL_RECOVERY,
+                            ctx.epoch,
+                            timestamp_field="last_social_epoch",
+                        ),
+                    )
+                )
 
-        skill, leveled_up = grant_cooking_experience(character, dish_experience(recipe.satiety))
+        skill, leveled_up = advanced_cooking_skill(character, dish_experience(recipe.satiety))
+        operations.append(SetComponent(character_id, skill))
         events.append(
             MealCateredEvent(
                 **ctx.event_base(
@@ -182,18 +214,42 @@ class CaterHandler:
                 )
             )
         room = ctx.world.get_entity(room_id) if room_id is not None else None
-        resolved = resolve_feast_incident(ctx.world, room, ctx.epoch, actor_id=str(character_id))
-        if resolved is not None:
-            events.append(resolved)
-        return ok(*events)
+        incident_entity = pending_feast_incident(ctx.world, room) if room is not None else None
+        if incident_entity is not None:
+            incident = incident_entity.get_component(IncidentComponent)
+            operations.append(
+                SetComponent(
+                    incident_entity.id,
+                    replace(incident, resolved_at_epoch=ctx.epoch),
+                )
+            )
+            events.append(
+                IncidentResolvedEvent(
+                    **ctx.event_base(
+                        visibility=EventVisibility.ROOM,
+                        actor_id=str(character_id),
+                        room_id=str(room.id),
+                        target_ids=(str(incident_entity.id),),
+                        incident_id=str(incident_entity.id),
+                        kind=INCIDENT_KIND,
+                    )
+                )
+            )
+        operations.extend(DeleteEntity(ingredient_id) for ingredient_id in used_ids)
+        return planned(MutationPlan(tuple(operations)), *events)
 
-    def _feed(self, ctx, diner, satiety, room_str, events) -> None:
+    def _feed(self, ctx, diner, satiety, room_str, events, operations) -> None:
         """Relieve a diner's core hunger and emit the core food/hunger events."""
         if not diner.has_component(HungerComponent):
             return
         hunger = diner.get_component(HungerComponent)
         new_meter = changed(hunger.meter, -satiety)
-        replace_component(diner, replace(hunger, meter=new_meter, last_ate_epoch=ctx.epoch))
+        operations.append(
+            SetComponent(
+                diner.id,
+                replace(hunger, meter=new_meter, last_ate_epoch=ctx.epoch),
+            )
+        )
         events.append(
             FoodEatenEvent(
                 **ctx.event_base(

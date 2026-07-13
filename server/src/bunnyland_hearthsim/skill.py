@@ -108,13 +108,19 @@ def grant_cooking_experience(
 
     Returns the updated component and whether the character crossed into a new tier.
     """
+    updated, leveled_up = advanced_cooking_skill(character, amount)
+    replace_component(character, updated)
+    return updated, leveled_up
+
+
+def advanced_cooking_skill(character: Entity, amount: float) -> tuple[CookingSkillComponent, bool]:
+    """Build the result of granting cooking experience without mutating the character."""
     current = cooking_skill_of(character)
     updated = replace(
         current,
         experience=current.experience + amount,
         meals_cooked=current.meals_cooked + 1,
     )
-    replace_component(character, updated)
     return updated, skill_tier(updated.experience) > skill_tier(current.experience)
 
 
